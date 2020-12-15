@@ -1,0 +1,12 @@
+[package]
+name = "cykv"
+version = "0.1.0"
+authors = ["yah01 <kagaminehuan@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bson = "1.1.0"
+serde = "1.0.118"
+tempfile = "3.1.0"
