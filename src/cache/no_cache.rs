@@ -8,8 +8,12 @@ use std::fs::{File, OpenOptions};
 pub struct NoCacheManager;
 
 impl CacheManager for NoCacheManager {
+	// fn with_dir(&self, dir: &Path) -> Box<dyn CacheManager> {
+	// 	Box::new(NoCacheManager{})
+	// }
+
 	fn open(&self, path: &Path) -> Box<dyn Cache> {
-		return Box::new(NoCache::new(path));
+		Box::new(NoCache::new(path))
 	}
 }
 

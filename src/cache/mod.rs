@@ -11,6 +11,7 @@ use std::path::Path;
 
 
 pub trait CacheManager: Send + Sync+Clone {
+    // fn with_dir(&self, dir: &Path) -> Box<dyn CacheManager>;
     fn open(&self, path: &Path) -> Box<dyn Cache>;
 }
 pub trait Cache: Read + Write + Seek + Send + Sync {
