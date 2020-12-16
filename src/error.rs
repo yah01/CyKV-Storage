@@ -5,7 +5,8 @@ pub enum CyKvError {
 	Io(io::Error),
 	Serialize(bson::ser::Error),
 	Deserialize(bson::de::Error),
-	Internal
+	Internal,
+	KeyNotFound(String),
 }
 
 impl From<io::Error> for CyKvError {

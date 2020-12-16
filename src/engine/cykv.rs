@@ -144,7 +144,9 @@ impl CyStoreWriter {
     }
 
     fn remove(&mut self, key: String) -> Result<()> {
-        self.keydir.write().unwrap().remove(&key);
+        if self.keydir.write().unwrap().remove(&key).is_none() {
+            return Err(CyKvError::KeyNotFound(key));
+        }
 
         let cmd = Command::Remove { key };
         self.append_command(cmd)?;
