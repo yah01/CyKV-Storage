@@ -47,7 +47,6 @@ pub struct CyStore<C: CacheManager> {
     writer: Arc<Mutex<CyStoreWriter<C>>>,
 }
 
-// todo: compact
 impl<C: CacheManager> CyStore<C> {
     pub fn open(dir: PathBuf, cache_manager: C) -> Result<Self> {
         let mut keydir = HashMap::new();
