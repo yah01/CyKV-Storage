@@ -14,5 +14,5 @@ The stages:
 |---|---|
 |re-open|stable|
 |compaction|stable|
-|server|in-plan|
+|server|developing|
 |cache|developing|

@@ -104,7 +104,7 @@ fn compaction() -> Result<()> {
     for iter in 0..1000 {
         let store = no_cache_storage(temp_dir.clone())?;
 
-        for key_id in 0..1000 {
+        for key_id in 0..30000 {
             let key = format!("key{}", key_id);
             let value = format!("{}", iter);
             store.set(key, value)?;
@@ -121,7 +121,7 @@ fn compaction() -> Result<()> {
 
         // reopen and check content
         let store = no_cache_storage(temp_dir.clone())?;
-        for key_id in 0..1000 {
+        for key_id in 0..30000 {
             let key = format!("key{}", key_id);
             assert_eq!(store.get(key)?, Some(format!("{}", iter)));
         }

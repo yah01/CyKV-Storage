@@ -5,13 +5,13 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::collections::HashMap;
-use std::fs::{self,File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
-// 1MiB
-const COMPACT_THRESHOLD: u64 = 1 << 20;
+// 32 MiB
+const COMPACT_THRESHOLD: u64 = 32 << 20;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct LogIndex {
@@ -152,7 +152,7 @@ impl<C: CacheManager> CyStore<C> {
     }
 }
 
-impl<C: CacheManager> KvEngine for CyStore<C> {
+impl<C: CacheManager + 'static> KvEngine for CyStore<C> {
     fn get(&self, key: String) -> Result<Option<String>> {
         match self.keydir.read().unwrap().get(&key) {
             Some(log_index) => {
@@ -284,8 +284,10 @@ impl<C: CacheManager> CyStoreWriter<C> {
         self.uncompacted = 0;
 
         // Rename the compaction file
-        fs::rename(log_path(self.dir.as_path(),compact_log_id),
-                        log_path(self.dir.as_path(),*self.log_id-1))?;
+        fs::rename(
+            log_path(self.dir.as_path(), compact_log_id),
+            log_path(self.dir.as_path(), *self.log_id - 1),
+        )?;
 
         Ok(())
     }

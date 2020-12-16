@@ -5,7 +5,7 @@ pub use cykv::*;
 
 use crate::*;
 
-pub trait KvEngine: Clone + Send {
+pub trait KvEngine: Clone + Send + 'static {
     // Get the value
     fn get(&self, key: String) -> Result<Option<String>>;
 

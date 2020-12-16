@@ -10,3 +10,4 @@ pub use cache::*;
 pub(crate) use utils::*;
 
 extern crate serde;
+extern crate failure;
