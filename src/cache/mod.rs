@@ -1,11 +1,10 @@
-mod chunk;
-mod file_cache;
+// mod chunk;
+// mod file_cache;
 mod no_cache;
-pub use file_cache::*;
+
+// pub use file_cache::*;
 pub use no_cache::*;
 
-// use crate::cache::chunk::ChunkList;
-// use chunk::Chunk;
 use std::io::{Read, Seek, Write};
 use std::path::Path;
 use std::sync::Arc;
