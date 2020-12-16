@@ -23,7 +23,7 @@ enum Command {
 }
 
 #[derive(Clone)]
-pub struct CyStore<C:CacheManager> {
+pub struct CyStore<C: CacheManager> {
     dir: Arc<PathBuf>, // The directory of the cykv stores data.
 
     keydir: Arc<RwLock<HashMap<String, LogIndex>>>, // Map key to log index.
@@ -33,7 +33,7 @@ pub struct CyStore<C:CacheManager> {
     writer: Arc<Mutex<CyStoreWriter>>,
 }
 
-impl<C:CacheManager> CyStore<C> {
+impl<C: CacheManager> CyStore<C> {
     // todo: finish
     pub fn open(path: PathBuf, cache_manager: C) -> Self {
         let keydir = Arc::new(RwLock::new(HashMap::new()));
@@ -59,7 +59,9 @@ impl<C:CacheManager> CyStore<C> {
     }
 
     fn read_command(&self, log_index: &LogIndex) -> Result<Command> {
-        let mut cache = self.cache_manager.open(self.log_path(log_index.id).as_path());
+        let mut cache = self
+            .cache_manager
+            .open(self.log_path(log_index.id).as_path());
         cache.seek(SeekFrom::Start(log_index.command_pos))?;
 
         let cmd: Command = bson::from_document(bson::Document::from_reader(&mut cache)?)?;
@@ -68,7 +70,7 @@ impl<C:CacheManager> CyStore<C> {
     }
 }
 
-impl<C:CacheManager> KvEngine for CyStore<C> {
+impl<C: CacheManager> KvEngine for CyStore<C> {
     fn get(&self, key: String) -> Result<Option<String>> {
         match self.keydir.read().unwrap().get(&key) {
             Some(log_index) => {
