@@ -1,23 +1,34 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
-use crate::cache::{Cache, CacheManager, NoCacheManager};
+use crate::cache::{Cache, CacheManager};
 use crate::engine::KvEngine;
+use std::cmp::max;
+use std::fs::File;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct LogIndex {
+pub(crate) struct LogIndex {
     id: u32,
     command_pos: u64,
     len: u64,
 }
 
+impl LogIndex {
+    pub fn new(id: u32, pos: u64, len: u64) -> Self {
+        Self {
+            id,
+            command_pos: pos,
+            len,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-enum Command {
+pub(crate) enum Command {
     Set { key: String, value: String },
     Remove { key: String },
 }
@@ -33,25 +44,41 @@ pub struct CyStore<C: CacheManager> {
     writer: Arc<Mutex<CyStoreWriter>>,
 }
 
+// todo: compact
 impl<C: CacheManager> CyStore<C> {
-    // todo: finish
-    pub fn open(path: PathBuf, cache_manager: C) -> Self {
-        let keydir = Arc::new(RwLock::new(HashMap::new()));
-        let log_id = Arc::new(1);
-        let cache = cache_manager.open(log_path(&path, *log_id).as_path());
+    pub fn open(dir: PathBuf, cache_manager: C) -> Result<Self> {
+        let mut keydir = HashMap::new();
+        let mut log_id = 0;
+
+        for entry in dir.read_dir()? {
+            let entry = entry?;
+            if let Some(ext) = entry.path().extension() {
+                if ext == "log" {
+                    log_id = max(
+                        log_id,
+                        utils::read_log(entry.path().as_path(), &mut keydir)?,
+                    );
+                }
+            }
+        }
+
+        let keydir = Arc::new(RwLock::new(keydir));
+        let log_id = Arc::new(log_id + 1);
+
+        let cache = cache_manager.open(log_path(&dir, *log_id).as_path());
         let writer = CyStoreWriter {
             keydir: Arc::clone(&keydir),
             log_id: Arc::clone(&log_id),
             writer: cache,
         };
 
-        Self {
-            dir: Arc::new(path),
+        Ok(Self {
+            dir: Arc::new(dir),
             keydir,
             log_id,
             cache_manager: Arc::new(cache_manager),
             writer: Arc::new(Mutex::new(writer)),
-        }
+        })
     }
 
     fn log_path(&self, id: u32) -> PathBuf {
@@ -76,7 +103,7 @@ impl<C: CacheManager> KvEngine for CyStore<C> {
             Some(log_index) => {
                 let cmd: Command = self.read_command(log_index)?;
 
-                if let Command::Set { key, value } = cmd {
+                if let Command::Set { key: _, value } = cmd {
                     Ok(Some(value))
                 } else {
                     Ok(None)

@@ -1,3 +1,4 @@
+// todo: add file_cache
 // mod chunk;
 // mod file_cache;
 mod no_cache;
@@ -7,7 +8,7 @@ pub use no_cache::*;
 
 use std::io::{Read, Seek, Write};
 use std::path::Path;
-use std::sync::Arc;
+
 
 pub trait CacheManager: Send + Sync+Clone {
     fn open(&self, path: &Path) -> Box<dyn Cache>;

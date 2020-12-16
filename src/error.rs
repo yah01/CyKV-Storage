@@ -5,6 +5,7 @@ pub enum CyKvError {
 	Io(io::Error),
 	Serialize(bson::ser::Error),
 	Deserialize(bson::de::Error),
+	Internal
 }
 
 impl From<io::Error> for CyKvError {
