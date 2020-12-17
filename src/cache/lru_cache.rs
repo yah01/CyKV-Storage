@@ -8,14 +8,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::ops::Add;
 
-pub struct FileCacheManager {
+pub struct LruCacheManager {
     cache_map: HashMap<PathBuf,Cache>
 }
 
-impl CacheManager for FileCacheManager {
+impl CacheManager for LruCacheManager {
     fn open(&self, path: &Path) -> Box<dyn Cache> {
         Box::new(
-            FileCache::new(path,)
+            LruCache::new(path,)
         )
     }
 }
@@ -25,7 +25,7 @@ impl CacheManager for FileCacheManager {
 /// each chunk has size `CHUNK_SIZE`
 /// divide file data into multiple chunks: continuous `CHUNK_SIZE` bytes is a chunk
 /// the i-th chunk has the `index i`
-pub struct FileCache {
+pub struct LruCache {
     path: PathBuf,
 
     list: Arc<ChunkList>,                 // shared chunk list
@@ -34,7 +34,7 @@ pub struct FileCache {
     cur_offset: u64,
 }
 
-impl FileCache {
+impl LruCache {
     pub fn new(path: impl AsRef<Path>, file_id: u32, list: &Arc<ChunkList>) -> Self {
         let mut chunk_map = HashMap::new();
 
@@ -68,17 +68,17 @@ impl FileCache {
     }
 }
 
-impl Cache for FileCache {
+impl Cache for LruCache {
     fn offset(&self) -> u64 {
         self.cur_offset
     }
 }
 
-impl Read for FileCache {
+impl Read for LruCache {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let (start, end) = (
-            FileCache::offset_to_index(self.cur_offset),
-            FileCache::offset_to_index(self.cur_offset + buf.len() as u64),
+            LruCache::offset_to_index(self.cur_offset),
+            LruCache::offset_to_index(self.cur_offset + buf.len() as u64),
         );
 
         let mut len = 0;
@@ -90,7 +90,7 @@ impl Read for FileCache {
     }
 }
 
-impl Write for FileCache {
+impl Write for LruCache {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         unimplemented!()
     }
@@ -100,7 +100,7 @@ impl Write for FileCache {
     }
 }
 
-impl Seek for FileCache {
+impl Seek for LruCache {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         unimplemented!()
     }
