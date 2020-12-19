@@ -15,10 +15,10 @@ The stages:
 - nightly
 - stable
 
-|features|stage|
-|---|---|
-|re-open|stable|
-|compaction|stable|
-|server|developing|
-|cache|developing|
-|ACID transaction| in-plan|
+|features|stage|comment|
+|---|---|---|
+|re-open|stable||
+|compaction|stable||
+|server|developing||
+|cache|nightly|there are still some issues, and bad performance for writing|
+|ACID transaction| in-plan||
