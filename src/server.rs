@@ -35,28 +35,28 @@ fn serve<E: KvEngine>(engine: E,stream: TcpStream) -> Result<()> {
 
     for req in reader.into_iter::<Request>() {
         if let Err(e) = req {
-            let res = Response::err("error when read request".to_owned());
+            let res = Response::Err("error when read request".to_owned());
             serde_json::to_writer(&stream,&res)?;
             return Err(CyKvError::SerdeJson(e));
         }
 
         let res = match req.unwrap() {
-            Request::get{key} => {
+            Request::Get { Key: key } => {
                 match engine.get(key) {
-                    Ok(value) => Response::ok(value),
-                    Err(e) => Response::err("".to_owned())
+                    Ok(value) => Response::Ok(value),
+                    Err(e) => Response::Err("".to_owned())
                 }
             }
-            Request::set {key,value} => {
+            Request::Set { Key: key, Value: value } => {
                 match engine.set(key,value) {
-                    Ok(_) => Response::ok(None),
-                    Err(e) => Response::err("".to_owned()),
+                    Ok(_) => Response::Ok(None),
+                    Err(e) => Response::Err("".to_owned()),
                 }
             }
-            Request::remove {key} => {
+            Request::Remove { Key: key } => {
                 match engine.remove(key) {
-                    Ok(_) => Response::ok(None),
-                    Err(e) => Response::err("".to_owned()),
+                    Ok(_) => Response::Ok(None),
+                    Err(e) => Response::Err("".to_owned()),
                 }
             }
         };
@@ -68,18 +68,16 @@ fn serve<E: KvEngine>(engine: E,stream: TcpStream) -> Result<()> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[allow(non_camel_case_types)]
-#[serde(tag = "type")]
+// #[serde(tag = "type")]
 pub enum Request {
-    get { key: String },
-    set { key: String, value: String },
-    remove { key: String },
+    Get { Key: String },
+    Set { Key: String, Value: String },
+    Remove { Key: String },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[allow(non_camel_case_types)]
-#[serde(tag = "type")]
+// #[serde(tag = "type")]
 pub enum Response {
-	ok(Option<String>),
-	err(String),
+	Ok(Option<String>),
+	Err(String),
 }
