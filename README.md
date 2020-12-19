@@ -12,7 +12,7 @@ The cache policy is scalable, but there are some basic principles for the engine
 The stages:
 - in-plan
 - developing
-- nightly
+- nightly: available, but hasn't been tested yet
 - stable
 
 |features|stage|comment|
