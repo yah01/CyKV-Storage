@@ -16,7 +16,7 @@ The stages:
 - stable
 
 |features|stage|comment|
-|---|---|---|
+|:---:|:---:|---|
 |re-open|stable||
 |compaction|stable||
 |server|nightly||
