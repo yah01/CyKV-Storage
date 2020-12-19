@@ -1,12 +1,10 @@
 use crate::cache::*;
-use lru;
 use std::cmp::{max, min};
 use std::collections::HashMap;
-use std::fs::{self, Metadata};
+use std::fs::{self};
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 // file_id and index
@@ -168,11 +166,7 @@ impl Write for LruCache {
         for i in start + 1..end {
             len += self.write_chunk((i * CHUNK_SIZE) as u64, i, &buf[len..])?;
         }
-        len += self.write_chunk(
-            self.cur_offset + buf.len() as u64,
-            end,
-            &buf[len..],
-        )?;
+        len += self.write_chunk(self.cur_offset + buf.len() as u64, end, &buf[len..])?;
 
         self.cur_offset += len as u64;
         self.len = max(self.len, self.cur_offset);

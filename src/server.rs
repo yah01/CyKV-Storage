@@ -1,5 +1,5 @@
-use crate::{Command, CyKvError, KvEngine, Result};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use crate::{CyKvError, KvEngine, Result};
+use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 

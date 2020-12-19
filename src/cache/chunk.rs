@@ -1,10 +1,8 @@
 use crate::cache::CHUNK_SIZE;
-use failure::_core::ops::{Deref, DerefMut};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use std::sync::Arc;
 
 pub enum State {
     None = 0,

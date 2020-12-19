@@ -1,7 +1,5 @@
 use failure::Fail;
-use serde::{Deserialize, Serialize};
 use std::io;
-use serde_json::Error;
 
 #[derive(Debug, Fail)]
 pub enum CyKvError {

@@ -1,23 +1,18 @@
-// todo: add file_cache
 mod chunk;
 mod lru_cache;
 mod no_cache;
-// mod linked_list;
 
 pub use chunk::*;
 pub use lru_cache::*;
 pub use no_cache::*;
-// pub use linked_list::*;
 
 use std::io::{Read, Seek, Write};
 use std::path::Path;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
 pub trait CacheManager: Send + Sync {
     fn open(&self, path: &Path, file_id: u32) -> Box<dyn Cache>;
 }
-pub trait Cache: Read + Write + Seek + Send + Sync{
+pub trait Cache: Read + Write + Seek + Send + Sync {
     fn offset(&self) -> u64;
 }
 
