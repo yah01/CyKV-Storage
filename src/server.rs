@@ -1,5 +1,5 @@
-use crate::{Command, KvEngine, Result, CyKvError};
-use serde::{Deserialize, Serialize,Serializer,Deserializer};
+use crate::{Command, CyKvError, KvEngine, Result};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 
@@ -16,11 +16,10 @@ impl<E: KvEngine> Server<E> {
 
     pub fn run(&self) -> Result<()> {
         for stream in self.listener.incoming() {
-
             let engine = self.engine.clone();
             thread::spawn(move || {
-                if let Err(e) = serve(engine,stream.unwrap()) {
-                    eprintln!("{:?}",e);
+                if let Err(e) = serve(engine, stream.unwrap()) {
+                    eprintln!("{:?}", e);
                 }
             });
         }
@@ -29,39 +28,39 @@ impl<E: KvEngine> Server<E> {
     }
 }
 
-
-fn serve<E: KvEngine>(engine: E,stream: TcpStream) -> Result<()> {
+fn serve<E: KvEngine>(engine: E, stream: TcpStream) -> Result<()> {
     let reader = serde_json::Deserializer::from_reader(&stream);
 
     for req in reader.into_iter::<Request>() {
         if let Err(e) = req {
+            // Client close the connection
+            if e.line() == 0 && e.column() == 0 {
+                return Ok(());
+            }
             let res = Response::Err("error when read request".to_owned());
-            serde_json::to_writer(&stream,&res)?;
+            serde_json::to_writer(&stream, &res)?;
             return Err(CyKvError::SerdeJson(e));
         }
 
         let res = match req.unwrap() {
-            Request::Get { Key: key } => {
-                match engine.get(key) {
-                    Ok(value) => Response::Ok(value),
-                    Err(e) => Response::Err("".to_owned())
-                }
-            }
-            Request::Set { Key: key, Value: value } => {
-                match engine.set(key,value) {
-                    Ok(_) => Response::Ok(None),
-                    Err(e) => Response::Err("".to_owned()),
-                }
-            }
-            Request::Remove { Key: key } => {
-                match engine.remove(key) {
-                    Ok(_) => Response::Ok(None),
-                    Err(e) => Response::Err("".to_owned()),
-                }
-            }
+            Request::Get { Key: key } => match engine.get(key) {
+                Ok(value) => Response::Ok(value),
+                Err(e) => Response::Err("".to_owned()),
+            },
+            Request::Set {
+                Key: key,
+                Value: value,
+            } => match engine.set(key, value) {
+                Ok(_) => Response::Ok(None),
+                Err(e) => Response::Err("".to_owned()),
+            },
+            Request::Remove { Key: key } => match engine.remove(key) {
+                Ok(_) => Response::Ok(None),
+                Err(e) => Response::Err("".to_owned()),
+            },
         };
 
-        serde_json::to_writer(&stream,&res)?;
+        serde_json::to_writer(&stream, &res)?;
     }
 
     Ok(())
@@ -78,6 +77,6 @@ pub enum Request {
 #[derive(Serialize, Deserialize, Debug)]
 // #[serde(tag = "type")]
 pub enum Response {
-	Ok(Option<String>),
-	Err(String),
+    Ok(Option<String>),
+    Err(String),
 }
