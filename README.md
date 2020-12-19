@@ -19,6 +19,6 @@ The stages:
 |---|---|---|
 |re-open|stable||
 |compaction|stable||
-|server|developing||
+|server|nightly||
 |cache|nightly|there are still some issues, and bad performance for writing|
 |ACID transaction| in-plan||
