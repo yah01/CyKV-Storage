@@ -1,26 +1,27 @@
 // todo: add file_cache
-// mod chunk;
-// mod file_cache;
+mod chunk;
+mod lru_cache;
 mod no_cache;
+// mod linked_list;
 
-// pub use file_cache::*;
+pub use chunk::*;
+pub use lru_cache::*;
 pub use no_cache::*;
+// pub use linked_list::*;
 
 use std::io::{Read, Seek, Write};
 use std::path::Path;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
-
-pub trait CacheManager: Send + Sync+Clone {
-    // fn with_dir(&self, dir: &Path) -> Box<dyn CacheManager>;
-    fn open(&self, path: &Path) -> Box<dyn Cache>;
+pub trait CacheManager: Send + Sync {
+    fn open(&self, path: &Path, file_id: u32) -> Box<dyn Cache>;
 }
-pub trait Cache: Read + Write + Seek + Send + Sync {
+pub trait Cache: Read + Write + Seek + Send + Sync{
     fn offset(&self) -> u64;
 }
 
-pub enum CacheManagerEnum {
-
-}
+pub enum CacheManagerEnum {}
 
 /// Cache layer of CyKV
 /// the same chunk wouldn't be written by more than 1 threads
@@ -33,7 +34,7 @@ pub enum CacheManagerEnum {
 /// only situation:
 /// 2 threads attach a new file,
 
-const DEFAULT_CACHE_SIZE: usize = 100 << 20;
+pub const DEFAULT_CACHE_SIZE: usize = 100 << 20;
 
 // 4KiB CHUNK
 const CHUNK_SIZE_SHIFT: u64 = 12;

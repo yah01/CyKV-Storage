@@ -2,17 +2,14 @@ use crate::cache::{Cache, CacheManager};
 use std::path::{Path};
 use std::io::{Read, Write, Seek, SeekFrom,Result};
 use std::fs::{File, OpenOptions};
+use std::sync::Arc;
 
 
 #[derive(Clone)]
 pub struct NoCacheManager;
 
 impl CacheManager for NoCacheManager {
-	// fn with_dir(&self, dir: &Path) -> Box<dyn CacheManager> {
-	// 	Box::new(NoCacheManager{})
-	// }
-
-	fn open(&self, path: &Path) -> Box<dyn Cache> {
+	fn open(&self, path: &Path,file_id:u32) -> Box<dyn Cache> {
 		Box::new(NoCache::new(path))
 	}
 }

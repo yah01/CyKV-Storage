@@ -1,3 +1,5 @@
+#![feature(linked_list_cursors)]
+
 mod engine;
 mod error;
 mod cache;
@@ -11,3 +13,4 @@ pub(crate) use utils::*;
 
 extern crate serde;
 extern crate failure;
+extern crate lru;

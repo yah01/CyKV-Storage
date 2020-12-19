@@ -1,12 +1,13 @@
 use cykv::*;
 use std::path::PathBuf;
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
-fn no_cache_storage(path: PathBuf) -> Result<CyStore<NoCacheManager>> {
-    CyStore::open(path, NoCacheManager {})
+fn no_cache_storage(path: PathBuf) -> Result<CyStore> {
+    let cache_manager = Box::new(NoCacheManager{});
+    CyStore::open(path, cache_manager)
 }
 
 #[test]

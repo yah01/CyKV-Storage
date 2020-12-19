@@ -1,18 +1,18 @@
 use crate::cache::CHUNK_SIZE;
-use std::collections::linked_list::LinkedList;
+use failure::_core::ops::{Deref, DerefMut};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::Arc;
 
-enum State {
+pub enum State {
     None = 0,
     Empty = 1 << 0,
     Dirty = 1 << 1,
 }
 
-pub(crate) struct ChunkState {
+pub struct ChunkState {
     state: u8,
 }
 
@@ -46,9 +46,8 @@ impl ChunkState {
     }
 }
 
-pub(crate) struct Chunk {
+pub struct Chunk {
     buf: [u8; CHUNK_SIZE],
-    cur_offset: u64,
     len: usize,
 
     // Attached file
@@ -67,7 +66,6 @@ impl Chunk {
     pub fn new() -> Self {
         Self {
             buf: [0; CHUNK_SIZE],
-            cur_offset: 0,
             len: 0,
             file: None,
             file_id: 0,
@@ -76,25 +74,14 @@ impl Chunk {
         }
     }
 
-    // pub fn with_file(path: &Path, index: usize) -> io::Result<Self> {
-    //     let mut file = OpenOptions::new().read(true).write(true).open(path)?;
-    //     file.seek(SeekFrom::Start((index * CHUNK_SIZE) as u64))?;
-    //
-    //     Ok(Self {
-    //         buf: [0; CHUNK_SIZE],
-    //         cur_offset: 0,
-    //         len: 0,
-    //         file: Some(file),
-    //         file_id: 0,
-    //         index,
-    //         state: ChunkState::with_state(State::Empty),
-    //     })
-    // }
-
     pub fn attach(&mut self, path: &Path, file_id: u32, index: usize) -> io::Result<()> {
         self.store()?;
 
-        let file = OpenOptions::new().read(true).write(true).open(path)?;
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path)?;
         self.file_id = file_id;
         self.attach_file(file, index);
 
@@ -114,13 +101,13 @@ impl Chunk {
     fn attach_file(&mut self, file: File, index: usize) {
         self.file = Some(file);
         self.index = index;
-        self.cur_offset = 0;
+        // self.cur_offset = 0;
     }
 
     // Only read() may call load()
     fn load(&mut self) -> io::Result<usize> {
-        match &self.file {
-            Some(mut file) => {
+        match &mut self.file {
+            Some(file) => {
                 file.seek(SeekFrom::Start((self.index * CHUNK_SIZE) as u64))?;
                 self.len = file.read(&mut self.buf)?;
             }
@@ -140,11 +127,11 @@ impl Chunk {
             return Ok(0);
         }
 
-        match &self.file {
-            Some(mut file) => {
+        match &mut self.file {
+            Some(file) => {
                 file.seek(SeekFrom::Start((self.index * CHUNK_SIZE) as u64))?;
                 let len = file.write(&self.buf[..self.len])?;
-                file.flush()?;
+                file.sync_data()?;
 
                 self.state.clear(State::Dirty);
                 Ok(len)
@@ -152,47 +139,42 @@ impl Chunk {
             None => Ok(0),
         }
     }
-}
 
-impl Read for Chunk {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    pub(crate) fn read(&mut self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
         if self.state.is_empty() {
             self.load()?;
         }
 
-        let len = buf.write(&self.buf[self.cur_offset as usize..self.len])?;
-        self.cur_offset += len as u64;
+        let mut buf = buf;
+        let len = buf.write(&self.buf[offset as usize..self.len])?;
+
         Ok(len)
     }
-}
 
-impl Write for Chunk {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if self.state.is_empty() {
-            self.load()?;
+    pub(crate) fn write(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        if buf.len() == 0 {
+            return Ok(0);
         }
 
-        // Copy data from buf to inner buffer
-        for (i, byte) in buf.iter().enumerate() {
-            self.buf[i] = *byte;
+        let mut cnt = 0;
+        let offset = offset as usize;
+        for i in offset..CHUNK_SIZE {
+            self.buf[i] = buf[i - offset as usize];
+            cnt += 1;
+            if i - offset + 1 == buf.len() {
+                break;
+            }
         }
+        self.len = offset + cnt;
 
         self.state.set(State::Dirty);
 
-        Ok(buf.len())
+        Ok(cnt)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    pub(crate) fn sync(&mut self) -> io::Result<()> {
         self.store()?;
         Ok(())
-    }
-}
-
-impl Seek for Chunk {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        if let SeekFrom::Start(offset) = pos {
-            offset
-        }
     }
 }
 
@@ -202,30 +184,30 @@ impl Drop for Chunk {
     }
 }
 
-pub struct ChunkList {
-    list: LinkedList<Chunk>,
-}
-
-impl ChunkList {
-    pub fn new(size: usize) -> Self {
-        let mut list = LinkedList::new();
-        let mut chunk_num = (size / CHUNK_SIZE) as i32;
-        if size % CHUNK_SIZE > 0 {
-            chunk_num += 1;
-        }
-        println!()
-
-        for _ in 0..chunk_num {
-            list.push_back(Arc::new(Chunk::new()));
-        }
-
-        Self { list }
-    }
-
-    pub fn get(&mut self) -> Arc<Chunk> {
-        let mut chunk = self.list.pop_front().unwrap();
-        chunk.clear();
-        self.list.push_back(chunk);
-        Arc::clone(&chunk)
-    }
-}
+// pub struct ChunkAllocator {
+//     list: LinkedList<Arc<Chunk>>,
+// }
+//
+// impl ChunkAllocator {
+//     pub fn new(size: usize) -> Self {
+//         let mut list = LinkedList::new();
+//         let mut chunk_num = (size / CHUNK_SIZE) as i32;
+//         if size % CHUNK_SIZE > 0 {
+//             chunk_num += 1;
+//         }
+//
+//         for _ in 0..chunk_num {
+//             list.push_back(Arc::new(Chunk::new()));
+//         }
+//
+//         Self { list }
+//     }
+//
+//     pub fn get(&mut self) -> Arc<LinkedListNode<Arc<Chunk>>> {
+//         let mut chunk = self.list.pop_front().unwrap();
+//         chunk.clear();
+//         self.list.push_back(chunk);
+//         let node = self.list.back_node();
+//         Arc::new(*node.unwrap())
+//     }
+// }
