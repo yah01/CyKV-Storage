@@ -1,25 +1,33 @@
 use super::buffer::BufWriter;
 use crate::cache::{Cache, CacheManager};
 use crate::engine::KvEngine;
+use crate::LruCacheManager;
 use crate::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
-use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
+use std::hash::{Hash, Hasher};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
 use std::rc::Rc;
-use crate::LruCacheManager;
+use std::sync::{Arc, Mutex, RwLock};
 
 // 32 MiB
 const COMPACT_THRESHOLD: u64 = 32 << 20;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash)]
 pub(crate) struct LogIndex {
     id: u32,
     command_pos: u64,
     len: u64,
+}
+
+impl PartialEq for LogIndex {
+    fn eq(&self, other: &Self) -> bool {
+        self.
+    }
 }
 
 impl LogIndex {
@@ -42,7 +50,7 @@ pub(crate) enum Command {
 pub struct CyStore {
     dir: Arc<PathBuf>, // The directory of the cykv stores data.
 
-    keydir: Arc<RwLock<HashMap<String, LogIndex>>>, // Map key to log index.
+    keydir: Arc<RwLock<HashMap<u64, HashSet<LogIndex>>>>, // Map key to log index.
     log_id: Arc<u32>,
 
     cache_manager: Arc<dyn CacheManager>,
@@ -61,11 +69,7 @@ impl CyStore {
                 if ext == "log" {
                     log_id = max(
                         log_id,
-                        CyStore::read_log(
-                            entry.path().as_path(),
-                            &mut keydir,
-                            &mut uncompacted,
-                        )?,
+                        CyStore::read_log(entry.path().as_path(), &mut keydir, &mut uncompacted)?,
                     );
                 }
             }
@@ -113,7 +117,7 @@ impl CyStore {
 
     fn read_log(
         path: &Path,
-        keydir: &mut HashMap<String, LogIndex>,
+        keydir: &mut HashMap<u64, Vec<LogIndex>>,
         uncompacted: &mut u64,
     ) -> Result<u32> {
         let mut log_file = File::open(path)?;
@@ -157,15 +161,23 @@ impl CyStore {
 
 impl KvEngine for CyStore {
     fn get(&self, key: String) -> Result<Option<String>> {
-        match self.keydir.read().unwrap().get(&key) {
-            Some(log_index) => {
-                let cmd: Command = self.read_command(log_index)?;
+        let key_hash = hash_string(&key);
+        let src_key = key;
 
-                if let Command::Set { key: _, value } = cmd {
-                    Ok(Some(value))
-                } else {
-                    Ok(None)
+        match self.keydir.read().unwrap().get(&key_hash) {
+            Some(indexes) => {
+                let mut res = Ok(None);
+                for log_index in indexes {
+                    let cmd: Command = self.read_command(log_index)?;
+
+                    if let Command::Set { key, value } = cmd {
+                        if key == src_key {
+                            res = Ok(Some(value));
+                            break;
+                        }
+                    }
                 }
+                res
             }
 
             None => Ok(None),
@@ -184,7 +196,7 @@ impl KvEngine for CyStore {
 struct CyStoreWriter {
     dir: Arc<PathBuf>,
     cache_manager: Arc<dyn CacheManager>,
-    keydir: Arc<RwLock<HashMap<String, LogIndex>>>,
+    keydir: Arc<RwLock<HashMap<u64, Vec<LogIndex>>>>,
     log_id: Arc<u32>,
     uncompacted: u64,
     writer: Box<dyn Cache>, // log file writer
@@ -192,13 +204,23 @@ struct CyStoreWriter {
 
 impl CyStoreWriter {
     fn set(&mut self, key: String, value: String) -> Result<()> {
+        let key_hash = hash_string(&key);
+
         let cmd = Command::Set {
             key: key.clone(),
             value,
         };
 
         let log_index = self.append_command(cmd)?;
-        if let Some(log_index) = self.keydir.write().unwrap().insert(key, log_index) {
+        let mut keydir_value = self
+            .keydir
+            .write()
+            .unwrap()
+            .entry(key_hash)
+            .or_insert(vec![]);
+        keydir_value.push(log_index);
+
+        if let Some(log_index) = self.keydir.write().unwrap().insert(key_hash, log_index) {
             self.uncompacted += log_index.len;
         }
 
