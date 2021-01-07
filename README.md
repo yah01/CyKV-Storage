@@ -21,6 +21,6 @@ The stages:
 |compaction|stable||
 |server|nightly||
 |cache|nightly|there are still some issues, and bad performance for writing|
-|ACID transaction| in-plan||
 |efficient replay| nightly | store the keydir items which not in the writing log, and replay only the writing log|
 |efficient scan()| nightly | the compaction procedure writes logs lexicographically |
+|ACID transaction| in-plan||
