@@ -1,19 +1,21 @@
 use super::buffer::BufWriter;
 use crate::cache::{Cache, CacheManager};
 use crate::engine::KvEngine;
+use crate::LruCacheManager;
 use crate::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::ops::Bound::Included;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
 use std::rc::Rc;
-use crate::LruCacheManager;
+use std::sync::{Arc, Mutex, RwLock};
 
 // 32 MiB
 const COMPACT_THRESHOLD: u64 = 32 << 20;
+const KEYDIR_PATH: &str = "keydir.json";
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct LogIndex {
@@ -42,7 +44,7 @@ pub(crate) enum Command {
 pub struct CyStore {
     dir: Arc<PathBuf>, // The directory of the cykv stores data.
 
-    keydir: Arc<RwLock<HashMap<String, LogIndex>>>, // Map key to log index.
+    keydir: Arc<RwLock<BTreeMap<String, LogIndex>>>, // Map key to log index.
     log_id: Arc<u32>,
 
     cache_manager: Arc<dyn CacheManager>,
@@ -51,7 +53,7 @@ pub struct CyStore {
 
 impl CyStore {
     pub fn open(dir: PathBuf, cache_manager: Box<dyn CacheManager>) -> Result<Self> {
-        let mut keydir = HashMap::new();
+        let mut keydir = BTreeMap::new();
         let mut log_id = 0;
         let mut uncompacted = 0;
 
@@ -61,11 +63,7 @@ impl CyStore {
                 if ext == "log" {
                     log_id = max(
                         log_id,
-                        CyStore::read_log(
-                            entry.path().as_path(),
-                            &mut keydir,
-                            &mut uncompacted,
-                        )?,
+                        CyStore::read_log(entry.path().as_path(), &mut keydir, &mut uncompacted)?,
                     );
                 }
             }
@@ -113,7 +111,7 @@ impl CyStore {
 
     fn read_log(
         path: &Path,
-        keydir: &mut HashMap<String, LogIndex>,
+        keydir: &mut BTreeMap<String, LogIndex>,
         uncompacted: &mut u64,
     ) -> Result<u32> {
         let mut log_file = File::open(path)?;
@@ -172,6 +170,24 @@ impl KvEngine for CyStore {
         }
     }
 
+    fn scan(&self, begin: String, end: String) -> Result<Vec<String>> {
+        if begin > end {
+            return Err(CyKvError::KeyNotFound("begin > end".to_owned()));
+        }
+
+        let keydir = self.keydir.read().unwrap();
+        let mut values = Vec::new();
+        for (_, log_index) in keydir.range((Included(begin), Included(end))) {
+            let cmd = self.read_command(log_index)?;
+
+            if let Command::Set { key: _, value } = cmd {
+                values.push(value)
+            }
+        }
+
+        Ok(values)
+    }
+
     fn set(&self, key: String, value: String) -> Result<()> {
         self.writer.lock().unwrap().set(key, value)
     }
@@ -184,7 +200,7 @@ impl KvEngine for CyStore {
 struct CyStoreWriter {
     dir: Arc<PathBuf>,
     cache_manager: Arc<dyn CacheManager>,
-    keydir: Arc<RwLock<HashMap<String, LogIndex>>>,
+    keydir: Arc<RwLock<BTreeMap<String, LogIndex>>>,
     log_id: Arc<u32>,
     uncompacted: u64,
     writer: Box<dyn Cache>, // log file writer
@@ -254,7 +270,7 @@ impl CyStoreWriter {
         let mut writer = BufWriter::new(compaction_file)?;
 
         let mut keydir = self.keydir.write().unwrap();
-        for (key, log_index) in keydir.iter_mut() {
+        for (_, log_index) in keydir.iter_mut() {
             let cmd = self.read_command(log_index)?;
             let pos = writer.pos;
             bson::to_document(&cmd)?.to_writer(&mut writer)?;
@@ -263,6 +279,14 @@ impl CyStoreWriter {
             log_index.command_pos = pos;
             log_index.len = writer.pos - pos;
         }
+        
+        let keydir_persister = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(self.dir.as_path().join(KEYDIR_PATH))?;
+        serde_json::to_writer(keydir_persister,&*keydir)?;
+        
         drop(keydir);
         drop(writer);
 
